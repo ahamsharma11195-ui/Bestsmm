@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aham SMM Panel - Admin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f1f5f9; color: #1e293b; }
+    .container { max-width: 1400px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); }
+    h1 { text-align: center; color: #0f172a; margin-bottom: 10px; }
+    header { background: #1e40af; color: white; padding: 20px; border-radius: 0 0 16px 16px; text-align: center; position: relative; }
+    .logout-btn { position: absolute; right: 30px; top: 25px; background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+    .logout-btn:hover { background: #dc2626; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(600px, 1fr)); gap: 30px; margin-top: 30px; }
+    .card { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow: hidden; }
+    .card-header { background: #f8fafc; padding: 16px 24px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f1f5f9; font-weight: 600; }
+    .status-pending { color: #d97706; font-weight: bold; }
+    .status-approved { color: #059669; font-weight: bold; }
+    .status-rejected { color: #dc2626; font-weight: bold; }
+    .action-btn { padding: 8px 16px; border-radius: 6px; font-weight: 500; text-decoration: none; margin-right: 8px; display: inline-block; cursor: pointer; }
+    .approve { background: #10b981; color: white; }
+    .reject { background: #ef4444; color: white; }
+    .hidden { display: none; }
+    .login-screen { max-width: 400px; margin: 100px auto; padding: 40px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); text-align: center; }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="login-screen">
+  <h2>Aham SMM Panel Admin</h2>
+  <p style="color:#6b7280; margin-bottom:30px;">Admin Access Only</p>
+  <input type="text" id="adminUser" placeholder="Username" value="admin"><br>
+  <input type="password" id="adminPass" placeholder="Password" value="royal123"><br>
+  <button onclick="adminLogin()">Login</button>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboardScreen" class="hidden">
+  <header>
+    <h1>Aham SMM Panel - Admin Dashboard</h1>
+    <button class="logout-btn" onclick="adminLogout()">Logout</button>
+  </header>
+
+  <div class="container">
+    <div class="grid">
+      <!-- Deposit Requests -->
+      <div class="card">
+        <div class="card-header">Pending Deposit Requests</div>
+        <table>
+          <thead>
+            <tr><th>User</th><th>Amount</th><th>UTR</th><th>Proof</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="depositBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Order Requests -->
+      <div class="card">
+        <div class="card-header">Pending Order Requests</div>
+        <table>
+          <thead>
+            <tr><th>User</th><th>Service</th><th>Quantity</th><th>Link</th><th>Cost</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="orderBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Hardcoded Admin Credentials (CHANGE THESE!)
+const ADMIN_USER = "admin";
+const ADMIN_PASS = "royal123";
+
+// Login
+function adminLogin() {
+  const user = document.getElementById('adminUser').value.trim();
+  const pass = document.getElementById('adminPass').value.trim();
+
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    localStorage.setItem('ahamAdminLogged', 'true');
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('dashboardScreen').classList.remove('hidden');
+    loadAdminData();
+  } else {
+    alert("Wrong username or password!");
+  }
+}
+
+// Check if logged in
+if (localStorage.getItem('ahamAdminLogged') === 'true') {
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('dashboardScreen').classList.remove('hidden');
+  loadAdminData();
+}
+
+// Logout
+function adminLogout() {
+  localStorage.removeItem('ahamAdminLogged');
+  location.reload();
+}
+
+// Get balance from user panel's storage
+function getBalance() {
+  return parseFloat(localStorage.getItem('ahamSmmBalance') || 0);
+}
+
+function saveBalance(val) {
+  localStorage.setItem('ahamSmmBalance', val.toFixed(2));
+}
+
+// Load Data from localStorage
+function loadAdminData() {
+  // Deposit Requests
+  const depBody = document.getElementById('depositBody');
+  depBody.innerHTML = '';
+  const depositRequests = JSON.parse(localStorage.getItem('ahamDepositRequests') || '[]');
+  if (depositRequests.length === 0) {
+    depBody.innerHTML = '<tr><td colspan="6" class="no-data">No pending deposit requests</td></tr>';
+  } else {
+    depositRequests.forEach(d => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${d.user}</td>
+        <td>₹${d.amount.toFixed(2)}</td>
+        <td>${d.utr}</td>
+        <td>${d.proof}</td>
+        <td class="status-\( {d.status}"> \){d.status.charAt(0).toUpperCase() + d.status.slice(1)}</td>
+        <td>
+          ${d.status === 'pending' ? `
+            <button class="action-btn approve" onclick="approveDeposit(${d.id})">Approve</button>
+            <button class="action-btn reject" onclick="rejectDeposit(${d.id})">Reject</button>
+          ` : '-'}
+        </td>
+      `;
+      depBody.appendChild(tr);
+    });
+  }
+
+  // Order Requests
+  const ordBody = document.getElementById('orderBody');
+  ordBody.innerHTML = '';
+  const orderRequests = JSON.parse(localStorage.getItem('ahamOrderRequests') || '[]');
+  if (orderRequests.length === 0) {
+    ordBody.innerHTML = '<tr><td colspan="7" class="no-data">No pending order requests</td></tr>';
+  } else {
+    orderRequests.forEach(o => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${o.user}</td>
+        <td>${o.service}</td>
+        <td>${o.quantity.toLocaleString()}</td>
+        <td><a href="${o.link}" target="_blank">View</a></td>
+        <td>₹${o.cost.toFixed(2)}</td>
+        <td class="status-\( {o.status}"> \){o.status.charAt(0).toUpperCase() + o.status.slice(1)}</td>
+        <td>
+          ${o.status === 'pending' ? `
+            <button class="action-btn approve" onclick="completeOrder(${o.id})">Complete</button>
+            <button class="action-btn reject" onclick="rejectOrder(${o.id})">Reject</button>
+          ` : '-'}
+        </td>
+      `;
+      ordBody.appendChild(tr);
+    });
+  }
+}
+
+// Admin Actions - Real Balance Update
+function approveDeposit(id) {
+  let requests = JSON.parse(localStorage.getItem('ahamDepositRequests') || '[]');
+  const req = requests.find(r => r.id === id);
+  if (req && req.status === 'pending') {
+    let balance = getBalance();
+    balance += req.amount;
+    saveBalance(balance);
+    req.status = 'approved';
+    localStorage.setItem('ahamDepositRequests', JSON.stringify(requests));
+    alert(`Deposit ₹\( {req.amount} approved! Balance updated to ₹ \){balance.toFixed(2)}.`);
+    loadAdminData();
+  }
+}
+
+function rejectDeposit(id) {
+  let requests = JSON.parse(localStorage.getItem('ahamDepositRequests') || '[]');
+  const req = requests.find(r => r.id === id);
+  if (req && req.status === 'pending') {
+    req.status = 'rejected';
+    localStorage.setItem('ahamDepositRequests', JSON.stringify(requests));
+    alert(`Deposit request rejected.`);
+    loadAdminData();
+  }
+}
+
+function completeOrder(id) {
+  let requests = JSON.parse(localStorage.getItem('ahamOrderRequests') || '[]');
+  const req = requests.find(r => r.id === id);
+  if (req && req.status === 'pending') {
+    req.status = 'completed';
+    localStorage.setItem('ahamOrderRequests', JSON.stringify(requests));
+    alert(`Order #${id} marked as completed!`);
+    loadAdminData();
+  }
+}
+
+function rejectOrder(id) {
+  let requests = JSON.parse(localStorage.getItem('ahamOrderRequests') || '[]');
+  const req = requests.find(r => r.id === id);
+  if (req && req.status === 'pending') {
+    req.status = 'rejected';
+    localStorage.setItem('ahamOrderRequests', JSON.stringify(requests));
+    alert(`Order #${id} rejected.`);
+    loadAdminData();
+  }
+}
+
+// Init
+window.onload = () => {
+  if (localStorage.getItem('ahamAdminLogged') === 'true') {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('dashboardScreen').classList.remove('hidden');
+    loadAdminData();
+  }
+};
+</script>
+
+</body>
+</html>
