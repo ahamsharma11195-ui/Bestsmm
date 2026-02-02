@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aham SMM Panel</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 20px; background: #f9fafb; color: #111827; }
+    .container { max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); }
+    h1 { text-align: center; color: #111827; margin-bottom: 8px; }
+    .tagline { text-align: center; color: #6b7280; margin-bottom: 30px; font-size: 1.1rem; }
+    .balance-card { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 28px; border-radius: 12px; text-align: center; margin: 24px 0; font-size: 2.5rem; font-weight: 700; }
+    .section { margin: 40px 0; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: white; }
+    h2 { margin-top: 0; color: #111827; }
+    input, button, select { padding: 14px; margin: 10px 0; width: 100%; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+    input, select { border: 1px solid #d1d5db; }
+    button { background: #10b981; color: white; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    button:hover { background: #059669; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #e5e7eb; padding: 14px; text-align: left; }
+    th { background: #f3f4f6; font-weight: 600; }
+    .qr-box { text-align: center; margin: 24px 0; }
+    .hidden { display: none; }
+    .success-msg { background: #d1fae5; color: #065f46; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0; font-weight: 600; }
+    .support { text-align: center; margin-top: 50px; padding: 24px; background: #f9fafb; border-radius: 12px; }
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Aham SMM Panel</h1>
+  <p class="tagline">No login required • Balance & orders saved in this browser</p>
+
+  <!-- Balance -->
+  <div class="section">
+    <h2>Your Balance</h2>
+    <div class="balance-card">₹<span id="balanceDisplay">0.00</span></div>
+
+    <h3>Add Funds via UPI</h3>
+    <input type="number" id="depositAmount" min="10" placeholder="Enter amount (minimum ₹10)">
+    <button onclick="generateUpiQr()">Generate QR Code</button>
+
+    <div class="qr-box" id="qrContainer"></div>
+
+    <div id="proofSection" class="hidden">
+      <h3>After Payment</h3>
+      <input type="text" id="utrInput" placeholder="Enter UTR / Transaction ID" required><br><br>
+      Upload Screenshot: <input type="file" id="proofFile" accept="image/*"><br><br>
+      <button onclick="submitDepositRequest()">Submit Deposit Request</button>
+    </div>
+  </div>
+
+  <!-- Services -->
+  <div class="section">
+    <h2>Instagram Services</h2>
+    <div id="servicesContainer"></div>
+
+    <h3>Place New Order</h3>
+    <form id="orderForm">
+      <select id="serviceSelect" required>
+        <option value="">Select Service</option>
+      </select><br><br>
+
+      <input type="number" id="quantityInput" min="100" placeholder="Quantity (multiple of 1000)" required step="1000"><br><br>
+      <input type="text" id="linkInput" placeholder="Instagram Link (https://...)" required><br><br>
+      <button type="button" onclick="submitOrderRequest()">Submit Order Request</button>
+    </form>
+
+    <div id="orderSuccess" class="success-msg hidden">
+      Order successful! Your request has been sent to admin.
+    </div>
+
+    <h3>Your Orders</h3>
+    <table id="ordersTable">
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Quantity</th>
+          <th>Link</th>
+          <th>Cost</th>
+          <th>Status</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Support -->
+  <div class="support">
+    <h3>Support</h3>
+    <p>Instagram Support: <a href="https://instagram.com/ahamsharma578" target="_blank">@ahamsharma578</a></p>
+    <p>WhatsApp: <a href="https://wa.me/917065606827?text=Hello%20Aham%20SMM%20Panel" target="_blank">+91 7065606827</a></p>
+  </div>
+</div>
+
+<script>
+// Local Storage Helpers
+function getBalance() {
+  return parseFloat(localStorage.getItem('ahamSmmBalance') || 0);
+}
+
+function saveBalance(val) {
+  localStorage.setItem('ahamSmmBalance', val.toFixed(2));
+  document.getElementById('balanceDisplay').innerText = val.toFixed(2);
+}
+
+function getOrders() {
+  return JSON.parse(localStorage.getItem('ahamSmmOrders') || '[]');
+}
+
+function saveOrders(orders) {
+  localStorage.setItem('ahamSmmOrders', JSON.stringify(orders));
+  renderOrders();
+}
+
+function renderOrders() {
+  const tbody = document.querySelector('#ordersTable tbody');
+  tbody.innerHTML = '';
+  getOrders().forEach(order => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${order.service}</td>
+      <td>${order.quantity.toLocaleString()}</td>
+      <td><a href="${order.link}" target="_blank">View Link</a></td>
+      <td>₹${order.cost.toFixed(2)}</td>
+      <td>${order.status}</td>
+      <td>${order.date}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Services
+const services = [
+  {id:1, name:"Instagram Views", desc:"High quality, fast delivery", price:0.50, min:10000, max:500000},
+  {id:2, name:"Instagram Likes (Drop)", desc:"Cheap likes, may drop over time", price:15.00, min:100, max:10000},
+  {id:3, name:"Instagram Likes (Non-Drop)", desc:"Stable likes, minimal drop", price:30.00, min:100, max:10000},
+  {id:4, name:"Instagram Followers (40% Drop)", desc:"Budget followers, up to 40% drop", price:100.00, min:100, max:5000},
+  {id:5, name:"Instagram Followers (10% Drop)", desc:"Good retention, ~10% drop", price:150.00, min:100, max:5000},
+  {id:6, name:"Instagram Followers (Non-Drop)", desc:"Premium non-drop followers, high quality", price:300.00, min:100, max:3000}
+];
+
+// Render Services & Populate Select
+const serviceContainer = document.getElementById('servicesContainer');
+const serviceSelect = document.getElementById('serviceSelect');
+services.forEach(s => {
+  const card = document.createElement('div');
+  card.style.margin = '24px 0';
+  card.style.padding = '20px';
+  card.style.border = '1px solid #e5e7eb';
+  card.style.borderRadius = '12px';
+  card.innerHTML = `
+    <h3>${s.name}</h3>
+    <p>\( {s.desc} • ₹ \){s.price.toFixed(2)} per 1,000 • Min: ${s.min.toLocaleString()} – Max: ${s.max.toLocaleString()}</p>
+    <input type="number" id="qty-\( {s.id}" min=" \){s.min}" max="\( {s.max}" step="1000" placeholder="Enter quantity" oninput="updateCost( \){s.id}, ${s.price})"><br>
+    Total Cost: <strong><span id="cost-${s.id}">₹0.00</span></strong><br><br>
+    <input type="text" id="link-${s.id}" placeholder="Instagram link (https://...)"><br><br>
+    <button onclick="placeOrder(\( {s.id}, ' \){s.name.replace(/'/g, "\\'")}', ${s.price})">Place Order</button>
+  `;
+  serviceContainer.appendChild(card);
+
+  const opt = document.createElement('option');
+  opt.value = s.id;
+  opt.textContent = s.name;
+  serviceSelect.appendChild(opt);
+});
+
+function updateCost(id, price) {
+  const qty = parseInt(document.getElementById(`qty-${id}`).value) || 0;
+  const total = (qty / 1000) * price;
+  document.getElementById(`cost-${id}`).innerText = '₹' + total.toFixed(2);
+}
+
+function placeOrder(id, name, price) {
+  const qtyEl = document.getElementById(`qty-${id}`);
+  const linkEl = document.getElementById(`link-${id}`);
+  const qty = parseInt(qtyEl.value);
+  const link = linkEl.value.trim();
+
+  const service = services.find(s => s.id === id);
+  if (!qty || qty % 1000 !== 0 || qty < service.min || qty > service.max) {
+    alert('Quantity must be a multiple of 1000 and within min-max limits.');
+    return;
+  }
+  if (!link) {
+    alert('Please enter the Instagram link.');
+    return;
+  }
+
+  const cost = (qty / 1000) * price;
+  let balance = getBalance();
+
+  if (balance < cost) {
+    alert('Not enough balance. Please add funds first.');
+    return;
+  }
+
+  balance -= cost;
+  saveBalance(balance);
+
+  let orders = getOrders();
+  const requestId = Date.now(); // unique ID for admin sync
+  orders.push({
+    id: requestId,
+    service: name,
+    quantity: qty,
+    link: link,
+    cost: cost,
+    status: 'Pending',
+    date: new Date().toLocaleString()
+  });
+  saveOrders(orders);
+
+  // Save to order requests for admin panel
+  let orderRequests = JSON.parse(localStorage.getItem('ahamOrderRequests') || '[]');
+  orderRequests.push({
+    id: requestId,
+    user: "Current User",
+    service: name,
+    quantity: qty,
+    link: link,
+    cost: cost,
+    status: 'Pending'
+  });
+  localStorage.setItem('ahamOrderRequests', JSON.stringify(orderRequests));
+
+  document.getElementById('orderSuccess').classList.remove('hidden');
+
+  const message = `New Order Request from Aham SMM Panel\n\nService: ${name}\nQuantity: ${qty}\nLink: \( {link}\nCost: ₹ \){cost.toFixed(2)}\nPlease process.`;
+  const whatsappUrl = `https://wa.me/917065606827?text=${encodeURIComponent(message)}`;
+  window.open(whatsappUrl, '_blank');
+
+  document.getElementById('orderForm').reset();
+  qtyEl.value = '';
+  linkEl.value = '';
+  document.getElementById(`cost-${id}`).innerText = '₹0.00';
+
+  setTimeout(() => document.getElementById('orderSuccess').classList.add('hidden'), 5000);
+}
+
+// Deposit QR
+function generateUpiQr() {
+  const amount = parseFloat(document.getElementById('depositAmount').value);
+  if (isNaN(amount) || amount < 10) {
+    alert('Minimum amount is ₹10');
+    return;
+  }
+
+  const upiLink = `upi://pay?pa=9205193889@pthdfc&pn=Aham SMM Panel&am=${amount}&cu=INR&tn=Deposit to Aham SMM`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
+
+  document.getElementById('qrContainer').innerHTML = `<img src="\( {qrUrl}" alt="UPI QR Code"><p>Scan & Pay • Amount locked: ₹ \){amount}</p>`;
+  document.getElementById('proofSection').classList.remove('hidden');
+  document.getElementById('depositAmount').disabled = true;
+}
+
+function submitDepositRequest() {
+  const utr = document.getElementById('utrInput').value.trim();
+  const file = document.getElementById('proofFile').files[0];
+
+  if (!utr) return alert('Please enter UTR / Transaction ID');
+  if (!file) return alert('Please upload payment screenshot');
+
+  const amount = parseFloat(document.getElementById('depositAmount').value);
+  const requestId = Date.now();
+
+  let depositRequests = JSON.parse(localStorage.getItem('ahamDepositRequests') || '[]');
+  depositRequests.push({
+    id: requestId,
+    user: "Current User",
+    amount: amount,
+    utr: utr,
+    proof: file ? 'Uploaded' : 'No proof',
+    status: 'Pending'
+  });
+  localStorage.setItem('ahamDepositRequests', JSON.stringify(depositRequests));
+
+  alert('Deposit request submitted! Contact admin on WhatsApp to verify and add balance.');
+
+  document.getElementById('utrInput').value = '';
+  document.getElementById('proofFile').value = '';
+  document.getElementById('proofSection').classList.add('hidden');
+  document.getElementById('qrContainer').innerHTML = '';
+  document.getElementById('depositAmount').disabled = false;
+  document.getElementById('depositAmount').value = '';
+}
+
+// Init
+window.onload = () => {
+  if (!localStorage.getItem('ahamSmmBalance')) saveBalance(0);
+  renderOrders();
+};
+</script>
+
+</body>
+  </html>
